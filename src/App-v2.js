@@ -1,71 +1,31 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import StarRating from './starRating.js'
+import { useKey } from './useKeys';
+import { useLocalStorage } from './useLocalStorage';
+import { useMovies } from './useMovies';
 export default function App() {
  
-const [movies,setMovies]=useState([])
-const [watched,setWatched]=useState([])
-const[isLoading,setIsLoading]=useState(false)
-const[error,setError]=useState("")
+
 const[query,setQuery]=useState('')
 const[selectedId,setSelectedId]=useState(null)
+const {movies,isLoading,error}= useMovies(query)
+
+const[watched,setWatched]=useLocalStorage([],"watched")
+
 
 function handelSelectID(id){
   setSelectedId((selectedId)=>selectedId===id?null:id)
 }
 function handelAddWatch(movie){
   setWatched(watched=>[...watched,movie])
+
+ 
 }
 
 
-useEffect(function(){
 
-  const controller=new AbortController();
-
- async function fetchData(){
-  setIsLoading(true)
-  setError('')
-  let apiKey="fc39aa88"
-  try{
-    let res=await fetch(`http://www.omdbapi.com/?apikey=${apiKey} &s=${query}`,
-    {signal:controller.signal}
-    )
-    if(!res.ok) throw new Error("There is a problem")
-
-    
-    let data=await res.json()
-    if(data.Response==="False") throw new Error("Movie not found")
-    setMovies(data.Search)
-    setError('')
-  }
-  catch(error){
-    setError(error.message)
-    if(error.name!=='AbortError'){
-      setError(error.message)
-    }
-    
-  }
-  finally{
-    setIsLoading(false)
-    
-  }
-
-  if(query.length<3){
-    setError("")
-    setMovies([])
-    return;
-  }
-
-
-  }
-
-  fetchData()
-  handelSelectID(selectedId)
-  return function(){
-    controller.abort()
-  }
-},[query])
 
 
 
@@ -103,13 +63,28 @@ function ErrorMessage({message}){
 }
 
 function Search({query, setQuery}){
+  const input= useRef(null)
   
+
+useKey("Enter",function(){
+  if(document.activeElement === input.current){
+    return
+  }
+  input.current.focus()
+  setQuery("")
+})
+
+  // useEffect(function(){
+  //   document.querySelector('.ser').focus()
+  // },[query])
 
   return <div className='search'>
    <h1>🍿 usePopcorn</h1> 
-   <input type={'text'} placeholder="Search movies..."  
+   <input className='ser' type={'text'} placeholder="Search movies..."  
    value={query}
-   onChange={(e)=>setQuery(e.target.value)}></input>
+   onChange={(e)=>setQuery(e.target.value)}
+   ref={input}
+   ></input>
    
   </div>
 }
@@ -173,6 +148,16 @@ const[movie,setMovie]=useState({})
 const[isLoading,setIsLoading]=useState(false)
 const[userRating,setUserRating]=useState('')
 
+const countRef=useRef(0)
+
+useEffect(function(){
+
+  if(userRating)
+  countRef.current++
+},[userRating])
+ 
+
+
 const{Title:title,
       Year:year,
       Poster:poster,
@@ -182,9 +167,21 @@ const{Title:title,
       Released: released,
       Actor:actors,
       Director:director,
-      Genre:genre
+      Genre:genre,
 }=movie
 
+
+// const[isTop,setIsTop]=useState(imdbRating>7)
+// useEffect(
+//   function() {
+//   setIsTop(imdbRating>7)
+// },[imdbRating])
+// console.log(isTop)
+
+const isTop =imdbRating>7
+console.log(isTop)
+
+const[avgRating,setAvg]=useState(0)
 
 
 const exist= watched.map(movie=>movie.imdbID).includes(selectedId);
@@ -197,11 +194,19 @@ function handelAdd(){
     poster,
     imdbRating:Number(imdbRating),
     runtime:Number(runtime.split(' ').at(0)),
-    userRating
+    userRating,
+    countRatin: countRef.current
 
   }
+
+
   
   onAddWatched(newMovie)
+
+// setAvg(Number(imdbRating))
+// setAvg(avgRating=>(avgRating+userRating)/2)
+
+
   handelSelectID(selectedId)
 }
 
@@ -227,21 +232,9 @@ function handelAdd(){
   }
   ,[title])
 
+  useKey("Escape",handelSelectID,selectedId)
 
-
-  useEffect(function(){
-    function callback(e){
-        if(e.code==='Escape'){
-          handelSelectID(selectedId)
-        }
-      }
-      document.addEventListener('keydown',callback)
-      return function(){
-        document.removeEventListener('keydown',callback)
-      };
-    
-  },[handelSelectID])
-
+ 
 return<div className='details'>
  {isLoading?<Loading/>: <>
 <header>
@@ -256,6 +249,9 @@ return<div className='details'>
       <p>⭐ {imdbRating} IMDb Rating</p>
       </div>
       </header>
+
+      <p>{avgRating}</p>
+
      {!exist?
       <div className='rating'>
       <StarRating  maxRating={10} size={20} setUserRating={setUserRating}/> 
